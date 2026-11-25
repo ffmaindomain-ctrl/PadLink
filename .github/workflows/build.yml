@@ -1,0 +1,48 @@
+name: Build PadLink APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Locate project (unzip if uploaded as a .zip)
+        run: |
+          find_proj() { find . -name settings.gradle.kts -not -path './.git/*' | head -n1; }
+          if [ -z "$(find_proj)" ]; then
+            z=$(ls *.zip 2>/dev/null | head -n1)
+            [ -n "$z" ] || { echo "No project or zip found"; exit 1; }
+            unzip -o -q "$z"
+          fi
+          echo "PROJ=$(dirname "$(find_proj)")" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build APK
+        working-directory: ${{ env.PROJ }}
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PadLink-apk
+          path: ${{ env.PROJ }}/app/build/outputs/apk/debug/*.apk
+
+      - name: Upload PC server
+        uses: actions/upload-artifact@v4
+        with:
+          name: PadLink-pc-server
+          path: ${{ env.PROJ }}/pc-server/
